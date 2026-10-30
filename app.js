@@ -123,7 +123,7 @@ function profileFor(email){
   const name = (words.length ? words : ['User']).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   const jobs = [['Engineering','Software Engineer'],['Design','UI/UX Designer'],['Quality Assurance','QA Engineer'],['Operations','Business Analyst'],['Finance','Accounts Executive'],['Human Resources','HR Executive']];
   const cities = [['Chennai','Tamil Nadu','600001'],['Coimbatore','Tamil Nadu','641001'],['Madurai','Tamil Nadu','625001'],['Bengaluru','Karnataka','560001'],['Hyderabad','Telangana','500001'],['Pune','Maharashtra','411001']];
-  const [dept, title] = jobs[h % jobs.length], [city, state, postal] = cities[(h >> 3) % cities.length];
+  const [dept, title] = jobs[h % jobs.length], [city, state, postal] = cities[(h >>> 3) % cities.length];
   const basic = 40000 + (h % 12) * 4000;
   const pad = n => String(n).padStart(2,'0');
   const y = 2020 + (h % 5);
