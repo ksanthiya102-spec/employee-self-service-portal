@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leave · Employee Self-Service Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="content">
+
+      <div class="page-head">
+        <div><h2>Leave</h2><p>Check your balance, apply for leave and track approvals.</p></div>
+      </div>
+
+      <section class="grid g3 mb" id="balances"></section>
+
+      <section class="grid g-main mb">
+        <article class="card">
+          <h2>My leave requests</h2>
+          <p class="sub">Filter, review and cancel pending requests.</p>
+          <div class="toolbar">
+            <select class="select" id="fStatus" aria-label="Filter by status">
+              <option value="">All statuses</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Cancelled</option>
+            </select>
+            <select class="select" id="fSort" aria-label="Sort">
+              <option value="desc">Newest first</option><option value="asc">Oldest first</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Request</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table></div>
+          <div class="pager"><span id="pinfo"></span><div class="btns"><button class="btn btn-outline btn-sm" id="prev">Previous</button><button class="btn btn-outline btn-sm" id="next">Next</button></div></div>
+        </article>
+
+        <article class="card" id="apply">
+          <h2>Apply for leave</h2>
+          <p class="sub">Dates are checked against your balance and existing requests.</p>
+          <form id="leaveForm" novalidate>
+            <div class="field"><label for="type">Leave type <span class="req">*</span></label>
+              <select class="select" id="type"><option value="">Select type</option></select><div class="err"></div></div>
+            <div class="row2">
+              <div class="field"><label for="start">Start date <span class="req">*</span></label><input class="input" id="start" type="date"><div class="err"></div></div>
+              <div class="field"><label for="end">End date <span class="req">*</span></label><input class="input" id="end" type="date"><div class="err"></div></div>
+            </div>
+            <div class="hint" id="daysHint" style="margin:-6px 0 14px"></div>
+            <div class="field"><label for="reason">Reason <span class="req">*</span></label>
+              <textarea class="textarea" id="reason" maxlength="250" placeholder="Brief reason (max 250 characters)"></textarea>
+              <div class="hint"><span id="count">0</span>/250</div><div class="err"></div></div>
+            <button class="btn btn-primary btn-block" id="submit" type="submit">Submit request</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="card" id="mgrPanel" style="display:none">
+        <h2>Team approvals <span class="badge b-info">Manager</span></h2>
+        <p class="sub">Requests from your direct reports (demo data). Real scope must be enforced by the backend.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Decision</th></tr></thead>
+          <tbody id="mgrBody"></tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const user = initShell('leave', 'Leave');
+  const cls = { Approved:'b-ok', Pending:'b-warn', Rejected:'b-bad', Cancelled:'b-mute' };
+  const PAGE = 5; let page = 1;
+  let leaves = [];
+
+  function renderBalances(){
+    $('#balances').innerHTML = LEAVE_BALANCE.map(b => {
+      const left = b.total - b.used, pct = Math.round(left / b.total * 100);
+      return `<article class="card stat"><div class="lbl">${esc(b.type)}</div>
+        <div class="num">${left}<span style="font-size:1rem;color:var(--muted);font-weight:600"> / ${b.total} days</span></div>
+        <div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
+        <div class="lbl">${b.used} used</div></article>`;
+    }).join('');
+    $('#type').innerHTML = '<option value="">Select type</option>' + LEAVE_BALANCE.map(b => `<option>${esc(b.type)}</option>`).join('');
+  }
+
+  function renderTable(){
+    const tb = $('#tbody');
+    tb.innerHTML = [1,2,3].map(() => '<tr><td colspan="6"><div class="skeleton"></div></td></tr>').join('');   // loading state
+    setTimeout(() => {
+      leaves = getLeaves();
+      const st = $('#fStatus').value, dir = $('#fSort').value;
+      let rows = leaves.filter(l => !st || l.status === st).sort((a,b) => dir === 'desc' ? b.start.localeCompare(a.start) : a.start.localeCompare(b.start));
+      const pages = Math.max(1, Math.ceil(rows.length / PAGE)); if(page > pages) page = pages;
+      const slice = rows.slice((page-1)*PAGE, page*PAGE);
+      tb.innerHTML = slice.length ? slice.map(l => `<tr>
+          <td><b>${esc(l.id)}</b></td><td>${esc(l.type)}</td><td>${fmtDate(l.start)} – ${fmtDate(l.end)}</td><td>${l.days}</td>
+          <td><span class="badge ${cls[l.status]}">${esc(l.status)}</span></td>
+          <td>${l.status === 'Pending' ? `<button class="btn btn-danger btn-sm" data-cancel="${esc(l.id)}">Cancel</button>` : '—'}</td></tr>`).join('')
+        : `<tr><td colspan="6"><div class="state"><div class="big">${icon('inbox')}</div>No leave requests match your filter.</div></td></tr>`;
+      $('#pinfo').textContent = `Showing ${rows.length ? (page-1)*PAGE+1 : 0}–${Math.min(page*PAGE, rows.length)} of ${rows.length}`;
+      $('#prev').disabled = page <= 1; $('#next').disabled = page >= pages;
+    }, 250);
+  }
+
+  if (user) {
+    renderBalances(); renderTable();
+    $('#fStatus').onchange = $('#fSort').onchange = () => { page = 1; renderTable(); };
+    $('#prev').onclick = () => { page--; renderTable(); };
+    $('#next').onclick = () => { page++; renderTable(); };
+
+    $('#tbody').addEventListener('click', e => {
+      const id = e.target.dataset.cancel; if(!id) return;
+      openModal(`<h3>Cancel this request?</h3><p class="sub">Request ${esc(id)} will be cancelled. This cannot be undone.</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn btn-outline" onclick="closeModal()">Keep it</button><button class="btn btn-danger" id="yes">Yes, cancel</button></div>`);
+      $('#yes').onclick = () => { const all = getLeaves(); const r = all.find(x => x.id === id); if(r) r.status = 'Cancelled'; saveLeaves(all); closeModal(); toast('Leave request cancelled.'); renderTable(); };
+    });
+
+    const f = $('#leaveForm'), start = $('#start'), end = $('#end'), reason = $('#reason');
+    const today = new Date().toISOString().slice(0,10); start.min = end.min = today;
+    reason.addEventListener('input', () => $('#count').textContent = reason.value.length);
+    const updateHint = () => { $('#daysHint').textContent = (start.value && end.value && end.value >= start.value) ? `Total: ${daysBetween(start.value, end.value)} day(s)` : ''; };
+    start.onchange = end.onchange = updateHint;
+
+    f.addEventListener('submit', e => {
+      e.preventDefault(); clearErrors(f); let ok = true;
+      const type = $('#type');
+      if(!type.value){ setError(type, 'Please select a leave type.'); ok = false; }
+      if(!start.value){ setError(start, 'Start date is required.'); ok = false; }
+      if(!end.value){ setError(end, 'End date is required.'); ok = false; }
+      if(start.value && end.value && end.value < start.value){ setError(end, 'End date cannot be before start date.'); ok = false; }
+      if(!reason.value.trim()){ setError(reason, 'Please provide a reason.'); ok = false; }
+      if(ok){
+        const days = daysBetween(start.value, end.value);
+        const bal = LEAVE_BALANCE.find(b => b.type === type.value);
+        if(days > bal.total - bal.used){ setError(type, `Insufficient balance: ${bal.total - bal.used} day(s) left.`); ok = false; }
+        const clash = getLeaves().find(l => ['Pending','Approved'].includes(l.status) && overlaps(start.value, end.value, l.start, l.end));
+        if(clash){ setError(start, `Overlaps with ${clash.id} (${fmtDate(clash.start)} – ${fmtDate(clash.end)}).`); ok = false; }
+      }
+      if(!ok){ toast('Please fix the highlighted fields.', 'error'); return; }
+
+      const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Submitting…';
+      setTimeout(() => {   // TODO: fetch('/api/leaves', {method:'POST', ...})
+        const all = getLeaves();
+        all.unshift({ id:'LV-' + Math.random().toString(16).slice(2,8).toUpperCase(), type:type.value, start:start.value, end:end.value, days:daysBetween(start.value, end.value), status:'Pending', reason:reason.value.trim() });
+        saveLeaves(all); f.reset(); $('#count').textContent = '0'; updateHint(); page = 1;
+        btn.disabled = false; btn.textContent = 'Submit request';
+        toast('Leave request submitted for approval.'); renderTable();
+      }, 600);
+    });
+
+    /* Manager-only demo panel */
+    if (user.role === 'Manager') {
+      $('#mgrPanel').style.display = 'block';
+      const team = store.get('team', null) || (() => { const t = seedTeamRequests(); store.set('team', t); return t; })();
+      const drawTeam = () => {
+        $('#mgrBody').innerHTML = team.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.type)}</td><td>${fmtDate(t.start)} – ${fmtDate(t.end)}</td><td>${t.days}</td>
+          <td>${t.status === 'Pending' ? `<button class="btn btn-primary btn-sm" data-d="Approved" data-i="${t.id}">Approve</button> <button class="btn btn-danger btn-sm" data-d="Rejected" data-i="${t.id}">Reject</button>` : `<span class="badge ${cls[t.status]}">${t.status}</span>`}</td></tr>`).join('');
+      };
+      drawTeam();
+      $('#mgrBody').addEventListener('click', e => {
+        const d = e.target.dataset.d; if(!d) return;
+        const t = team.find(x => x.id === e.target.dataset.i); t.status = d; store.set('team', team); drawTeam(); toast(`Request ${d.toLowerCase()}.`);
+      });
+    }
+  }
+</script>
+</body>
+</html>

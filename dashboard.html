@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Employee Self-Service Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="content">
+
+      <section class="hero mb">
+        <h2 id="greet">Welcome</h2>
+        <p id="roleLine">Here's a quick look at your leave, pay and profile today.</p>
+        <div class="actions">
+          <a class="btn btn-light" href="leave.html">Apply for leave</a>
+          <a class="btn btn-ghost" href="payslip.html">View payslips</a>
+        </div>
+      </section>
+
+      <section class="grid g4 mb" id="stats"></section>
+
+      <section class="grid g-main">
+        <article class="card">
+          <h2>Recent leave requests</h2>
+          <p class="sub">Your latest requests and their status.</p>
+          <div id="recentLeaves"></div>
+          <a class="btn btn-outline btn-sm" href="leave.html" style="margin-top:14px">View all</a>
+        </article>
+
+        <aside class="grid" style="align-content:start">
+          <article class="card">
+            <h2>Quick actions</h2>
+            <p class="sub">Jump straight to common tasks.</p>
+            <div class="grid" style="gap:10px">
+              <a class="btn btn-outline" href="profile.html">Update my address</a>
+              <a class="btn btn-outline" href="leave.html#apply">Request leave</a>
+              <a class="btn btn-outline" href="payslip.html">Download latest payslip</a>
+            </div>
+          </article>
+          <article class="card">
+            <h2>Security tips</h2>
+            <ul class="list">
+              <li><span class="dot"></span><div>Never share your password or OTP with anyone.</div></li>
+              <li><span class="dot"></span><div>Log out when using a shared computer.</div></li>
+              <li><span class="dot"></span><div>Payslips are confidential — download only on trusted devices.</div></li>
+            </ul>
+          </article>
+        </aside>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const user = initShell('dashboard', 'Dashboard');
+  if (user) {
+    const hr = new Date().getHours();
+    const part = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+    $('#greet').textContent = `${part}, ${user.name.split(' ')[0]} 👋`;
+    $('#roleLine').textContent = `${user.title} · ${user.dept} — here's your day at a glance.`;
+
+    const leaves = getLeaves();
+    const available = LEAVE_BALANCE.reduce((s,b) => s + (b.total - b.used), 0);
+    const pending = leaves.filter(l => l.status === 'Pending').length;
+    const latest = seedPayslips()[1];
+    const cards = [
+      { ic:'cal',    cls:'',      num: available, lbl:'Leave days available' },
+      { ic:'clock',  cls:'amber', num: pending,   lbl:'Pending requests' },
+      { ic:'wallet', cls:'green', num: money(latest.net), lbl:`Net pay · ${latest.month} ${latest.year}` },
+      { ic:'shield', cls:'teal',  num: user.id,   lbl:'Employee ID' }
+    ];
+    $('#stats').innerHTML = cards.map(c => `
+      <article class="card stat"><div class="ic ${c.cls}">${icon(c.ic)}</div>
+      <div class="num">${esc(c.num)}</div><div class="lbl">${esc(c.lbl)}</div></article>`).join('');
+
+    const cls = { Approved:'b-ok', Pending:'b-warn', Rejected:'b-bad', Cancelled:'b-mute' };
+    const recent = leaves.slice(0, 4);
+    $('#recentLeaves').innerHTML = recent.length ? `<ul class="list">${recent.map(l => `
+      <li><span class="dot"></span><div style="flex:1"><b>${esc(l.type)}</b><br><small>${fmtDate(l.start)} – ${fmtDate(l.end)} · ${l.days} day(s)</small></div>
+      <span class="badge ${cls[l.status]||'b-mute'}">${esc(l.status)}</span></li>`).join('')}</ul>`
+      : `<div class="state"><div class="big">${icon('inbox')}</div>No leave requests yet.</div>`;
+  }
+</script>
+</body>
+</html>

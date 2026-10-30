@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Employee Self-Service Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth">
+  <section class="auth-art" aria-hidden="true">
+    <div class="brand"><span class="logo"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span><span>Employee Portal<small>Self-Service</small></span></div>
+    <div>
+      <h1>Your work life,<br>in one secure place.</h1>
+      <p>Update your details, request leave and access your payslips — anytime, on any device.</p>
+      <div class="feat">
+        <div>🔒 Role-based access &amp; protected records</div>
+        <div>🌴 Apply for leave &amp; track approvals live</div>
+        <div>📄 Download confidential payslips securely</div>
+      </div>
+    </div>
+    <small style="color:#a5b4fc">© 2026 Employee Self-Service Portal · Demo build with fictional data</small>
+  </section>
+
+  <main class="auth-form">
+    <div class="auth-box">
+      <h2>Welcome back 👋</h2>
+      <p>Sign in to continue to your portal.</p>
+
+      <div id="alert" class="alert bad" role="alert"></div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email">Work email <span class="req">*</span></label>
+          <input class="input" id="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+          <div class="err"></div>
+        </div>
+        <div class="field">
+          <label for="password">Password <span class="req">*</span></label>
+          <div class="input-wrap">
+            <input class="input" id="password" type="password" autocomplete="current-password" placeholder="Minimum 12 characters" required>
+            <button type="button" class="toggle" id="toggle" aria-label="Show password"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+          <div class="err"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="submit" type="submit">Sign in</button>
+      </form>
+
+      <div class="demo">
+        <b>Team accounts</b> (password: <code>DemoPass@2026!</code>)<br>
+        santhiya@gmail.com · swetha@gmail.com · manoranjani@gmail.com · sahana@gmail.com · vithiya@gmail.com
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script>
+  if (session.get()) location.replace('dashboard.html');
+
+  const form = $('#loginForm'), email = $('#email'), pw = $('#password'), alertBox = $('#alert');
+  $('#toggle').onclick = () => {
+    const show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    $('#toggle').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  };
+
+  let attempts = 0, lockedUntil = 0;   // demo of client-side throttling (backend must do the real one)
+  form.addEventListener('submit', e => {
+    e.preventDefault(); alertBox.classList.remove('show'); clearErrors(form);
+    let ok = true;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())){ setError(email, 'Enter a valid email address.'); ok = false; }
+    if(pw.value.length < 12){ setError(pw, 'Password must be at least 12 characters.'); ok = false; }
+    if(!ok) return;
+
+    if(Date.now() < lockedUntil){
+      alertBox.textContent = 'Too many attempts. Please wait 30 seconds and try again.'; alertBox.classList.add('show'); return;
+    }
+    const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Signing in…';
+    setTimeout(() => {   // TODO: replace with fetch('/api/auth/login', {method:'POST', ...})
+      const user = DEMO_USERS[email.value.trim().toLowerCase()];
+      if(user && pw.value === DEMO_PASSWORD){
+        session.login(email.value.trim().toLowerCase());
+        location.href = 'dashboard.html';
+      } else {
+        attempts++;
+        if(attempts >= 5){ lockedUntil = Date.now() + 30000; attempts = 0; }
+        alertBox.textContent = 'Invalid email or password.';   // generic message on purpose
+        alertBox.classList.add('show');
+        btn.disabled = false; btn.textContent = 'Sign in';
+      }
+    }, 600);
+  });
+</script>
+</body>
+</html>

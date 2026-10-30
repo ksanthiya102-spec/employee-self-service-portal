@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Payslips · Employee Self-Service Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="content">
+
+      <div class="page-head">
+        <div><h2>Payslips</h2><p>Confidential documents — only you can view and download them.</p></div>
+      </div>
+
+      <section class="grid g3 mb" id="summary"></section>
+
+      <section class="card">
+        <h2>Payslip history</h2>
+        <p class="sub">Downloads use a protected, authorization-checked endpoint.</p>
+        <div class="toolbar">
+          <select class="select" id="fYear" aria-label="Filter by year"></select>
+          <span class="badge b-info" style="margin-left:auto">🔒 Private</span>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Period</th><th>Gross</th><th>Deductions</th><th>Net pay</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table></div>
+        <div class="pager"><span id="pinfo"></span><div class="btns"><button class="btn btn-outline btn-sm" id="prev">Previous</button><button class="btn btn-outline btn-sm" id="next">Next</button></div></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const user = initShell('payslip', 'Payslips');
+  const PAGE = 6; let page = 1;
+  const slips = seedPayslips();
+
+  function render(){
+    const tb = $('#tbody');
+    tb.innerHTML = [1,2,3].map(() => '<tr><td colspan="6"><div class="skeleton"></div></td></tr>').join('');
+    setTimeout(() => {
+      const y = $('#fYear').value;
+      const rows = slips.filter(s => !y || String(s.year) === y);
+      const pages = Math.max(1, Math.ceil(rows.length / PAGE)); if(page > pages) page = pages;
+      const slice = rows.slice((page-1)*PAGE, page*PAGE);
+      tb.innerHTML = slice.length ? slice.map(s => `<tr>
+        <td><b>${s.month} ${s.year}</b></td><td>${money(s.gross)}</td><td>${money(s.pf + s.tax)}</td><td><b>${money(s.net)}</b></td>
+        <td><span class="badge ${s.status==='Paid'?'b-ok':'b-warn'}">${s.status}</span></td>
+        <td><button class="btn btn-outline btn-sm" data-view="${s.id}">${icon('eye')}View</button>
+            <button class="btn btn-primary btn-sm" data-dl="${s.id}" ${s.status!=='Paid'?'disabled':''}>${icon('down')}PDF</button></td></tr>`).join('')
+        : `<tr><td colspan="6"><div class="state"><div class="big">${icon('inbox')}</div>No payslips found for this year.</div></td></tr>`;
+      $('#pinfo').textContent = `Showing ${rows.length ? (page-1)*PAGE+1 : 0}–${Math.min(page*PAGE, rows.length)} of ${rows.length}`;
+      $('#prev').disabled = page <= 1; $('#next').disabled = page >= pages;
+    }, 250);
+  }
+
+  if (user) {
+    const years = [...new Set(slips.map(s => s.year))];
+    $('#fYear').innerHTML = '<option value="">All years</option>' + years.map(y => `<option>${y}</option>`).join('');
+    const last = slips.find(s => s.status === 'Paid');
+    $('#summary').innerHTML = [
+      { ic:'wallet', cls:'green', n: money(last.net), l:`Last net pay · ${last.month} ${last.year}` },
+      { ic:'doc', cls:'', n: slips.length, l:'Payslips available' },
+      { ic:'shield', cls:'teal', n:'Protected', l:'Downloaded via secure endpoint' }
+    ].map(c => `<article class="card stat"><div class="ic ${c.cls}">${icon(c.ic)}</div><div class="num" style="font-size:${typeof c.n==='string'?'1.5rem':'1.9rem'}">${esc(c.n)}</div><div class="lbl">${esc(c.l)}</div></article>`).join('');
+
+    render();
+    $('#fYear').onchange = () => { page = 1; render(); };
+    $('#prev').onclick = () => { page--; render(); };
+    $('#next').onclick = () => { page++; render(); };
+
+    $('#tbody').addEventListener('click', e => {
+      const btn = e.target.closest('button'); if(!btn) return;
+      if(btn.dataset.view){
+        const s = slips.find(x => x.id === btn.dataset.view);
+        openModal(`<h3>Payslip — ${s.month} ${s.year}</h3><p class="sub">${esc(user.name)} · ${esc(user.id)}</p>
+          <div class="payrow"><span>Basic salary</span><span>${money(s.basic)}</span></div>
+          <div class="payrow"><span>House rent allowance</span><span>${money(s.hra)}</span></div>
+          <div class="payrow"><span>Other allowances</span><span>${money(s.allow)}</span></div>
+          <div class="payrow"><span>Provident fund</span><span>− ${money(s.pf)}</span></div>
+          <div class="payrow"><span>Income tax (TDS)</span><span>− ${money(s.tax)}</span></div>
+          <div class="payrow total"><span>Net pay</span><span>${money(s.net)}</span></div>
+          <div style="text-align:right;margin-top:18px"><button class="btn btn-outline" onclick="closeModal()">Close</button></div>`);
+      }
+      if(btn.dataset.dl){
+        const s = slips.find(x => x.id === btn.dataset.dl);
+        btn.disabled = true;
+        // TODO: real call → fetch(`/api/payslips/${s.id}/download`, {credentials:'include'}) → blob → download
+        // Backend must verify ownership, send Content-Type: application/pdf, Content-Disposition with a safe filename, and Cache-Control: no-store
+        setTimeout(() => { btn.disabled = false; toast(`Demo: payslip_${s.year}_${s.month}.pdf would download here.`); }, 700);
+      }
+    });
+  }
+</script>
+</body>
+</html>

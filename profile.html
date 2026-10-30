@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Profile · Employee Self-Service Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="content">
+
+      <div class="page-head">
+        <div><h2>My Profile</h2><p>Official details are managed by HR. You can update your addresses.</p></div>
+      </div>
+
+      <section class="card mb">
+        <div class="profile-top">
+          <div class="avatar-lg" id="avatarLg">AS</div>
+          <div><h2 id="pName" style="font-size:1.4rem">—</h2><p class="sub" id="pTitle" style="margin:2px 0 0"></p>
+            <span class="badge b-ok">Active</span></div>
+        </div>
+        <dl class="kv" id="readonly"></dl>
+      </section>
+
+      <form id="addrForm" novalidate>
+        <section class="grid g2 mb">
+          <article class="card" id="resCard">
+            <h2>Residential address</h2><p class="sub">Where you currently live.</p>
+            <div id="resFields"></div>
+          </article>
+          <article class="card" id="mailCard">
+            <h2>Mailing address</h2><p class="sub">Where we send official correspondence.</p>
+            <label class="check"><input type="checkbox" id="same"> Same as residential address</label>
+            <div id="mailFields"></div>
+          </article>
+        </section>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="save" type="submit">Save changes</button>
+          <button class="btn btn-outline" id="reset" type="button">Reset</button>
+          <span class="hint" id="updated"></span>
+        </div>
+      </form>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const user = initShell('profile', 'My Profile');
+  const FIELDS = [
+    { k:'line1', l:'Address line 1', req:true, max:100 },
+    { k:'line2', l:'Address line 2', req:false, max:100 },
+    { k:'city', l:'City', req:true, max:60 },
+    { k:'state', l:'State', req:true, max:60 },
+    { k:'postal', l:'Postal code', req:true, max:6, hint:'6-digit PIN code' },
+    { k:'country', l:'Country', req:true, max:60 }
+  ];
+  const fieldHTML = (g, f) => `
+    <div class="field"><label for="${g}_${f.k}">${f.l} ${f.req?'<span class="req">*</span>':''}</label>
+    <input class="input" id="${g}_${f.k}" name="${g}_${f.k}" maxlength="${f.max}" ${f.k==='postal'?'inputmode="numeric"':''} autocomplete="off">
+    ${f.hint?`<div class="hint">${f.hint}</div>`:''}<div class="err"></div></div>`;
+
+  if (user) {
+    $('#avatarLg').textContent = user.name.split(' ').map(s=>s[0]).join('').slice(0,2);
+    $('#pName').textContent = user.name; $('#pTitle').textContent = `${user.title} · ${user.dept}`;
+    const ro = [['Employee ID', user.id],['Legal name', user.name],['Department', user.dept],['Designation', user.title],['Joining date', fmtDate(user.joined)],['Reporting manager', user.manager],['Work email', user.email]];
+    $('#readonly').innerHTML = ro.map(([k,v]) => `<div><dt>${k} <span class="lock">${icon('lock')} read-only</span></dt><dd>${esc(v)}</dd></div>`).join('');
+
+    $('#resFields').innerHTML = FIELDS.map(f => fieldHTML('res', f)).join('');
+    $('#mailFields').innerHTML = FIELDS.map(f => fieldHTML('mail', f)).join('');
+
+    const form = $('#addrForm'), same = $('#same');
+    function load(){
+      const a = getAddress();
+      FIELDS.forEach(f => { $('#res_'+f.k).value = a.res[f.k] || ''; $('#mail_'+f.k).value = a.mail[f.k] || ''; });
+      $('#updated').textContent = 'Last updated: ' + fmtDate(a.updated);
+      clearErrors(form);
+    }
+    load();
+
+    const syncMail = () => {
+      FIELDS.forEach(f => { const m = $('#mail_'+f.k); if(same.checked){ m.value = $('#res_'+f.k).value; } m.readOnly = same.checked; });
+    };
+    same.addEventListener('change', syncMail);
+    form.addEventListener('input', e => { if(same.checked && e.target.id.startsWith('res_')) syncMail(); });
+
+    function validate(g){
+      let ok = true;
+      FIELDS.forEach(f => {
+        const el = $(`#${g}_${f.k}`), v = el.value.trim(); let m = '';
+        if(f.req && !v) m = `${f.l} is required.`;
+        else if(v.length > f.max) m = `${f.l} must be at most ${f.max} characters.`;
+        else if(f.k === 'postal' && v && !/^\d{6}$/.test(v)) m = 'Enter a valid 6-digit postal code.';
+        else if(['city','state','country'].includes(f.k) && v && !/^[\p{L}\s.'-]+$/u.test(v)) m = 'Only letters and spaces are allowed.';
+        setError(el, m); if(m) ok = false;
+      });
+      return ok;
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const a = validate('res'), b = validate('mail');
+      if(!(a && b)){ toast('Please fix the highlighted fields.', 'error'); const first = $('.field.invalid .input'); if(first) first.focus(); return; }
+      const btn = $('#save'); btn.disabled = true; btn.textContent = 'Saving…';
+      setTimeout(() => {   // TODO: fetch('/api/employees/me/address', {method:'PATCH', ...})
+        const val = g => Object.fromEntries(FIELDS.map(f => [f.k, $(`#${g}_${f.k}`).value.trim()]));
+        const today = new Date().toISOString().slice(0,10);
+        store.set('address', { res: val('res'), mail: val('mail'), updated: today });
+        $('#updated').textContent = 'Last updated: ' + fmtDate(today);
+        btn.disabled = false; btn.textContent = 'Save changes';
+        toast('Address updated successfully.');
+      }, 600);
+    });
+    $('#reset').onclick = () => { same.checked = false; syncMail(); load(); };
+  }
+</script>
+</body>
+</html>
