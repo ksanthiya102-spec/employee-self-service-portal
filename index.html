@@ -50,8 +50,9 @@
       </form>
 
       <div class="demo">
-        <b>Team accounts</b> (password: <code>DemoPass@2026!</code>)<br>
-        santhiya@gmail.com · swetha@gmail.com · manoranjani@gmail.com · sahana@gmail.com · vithiya@gmail.com
+        <b>Demo login</b> — use any email address<br>
+        Password: <code>DemoPass@2026!</code><br>
+        Team: santhiya · swetha · manoranjani · sahana · vithiya @gmail.com
       </div>
     </div>
   </main>
@@ -82,7 +83,7 @@
     const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Signing in…';
     setTimeout(() => {   // TODO: replace with fetch('/api/auth/login', {method:'POST', ...})
       const user = DEMO_USERS[email.value.trim().toLowerCase()];
-      if(user && pw.value === DEMO_PASSWORD){
+      if(pw.value === DEMO_PASSWORD){   // demo: any valid email + the demo password
         session.login(email.value.trim().toLowerCase());
         location.href = 'dashboard.html';
       } else {
