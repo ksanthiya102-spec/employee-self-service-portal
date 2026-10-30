@@ -109,19 +109,51 @@ const LEAVE_TOTALS = { 'Annual Leave':24, 'Sick Leave':10, 'Casual Leave':6 };
 /* LEAVE_BALANCE is filled for the logged-in user at the bottom of this file */
 const LEAVE_BALANCE = [];
 
+/* Any email can log in. The 5 team members above keep their own data;
+   every other email gets a profile whose NAME comes from the email
+   (e.g. ravi.kumar@gmail.com -> "Ravi Kumar") and whose other data is generated from the email. */
+const _generated = {};
+function profileFor(email){
+  email = String(email || '').trim().toLowerCase();
+  if(DEMO_USERS[email]) return DEMO_USERS[email];
+  if(_generated[email]) return _generated[email];
+
+  let h = 0; for(const c of email) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const words = email.split('@')[0].replace(/[0-9]+/g,' ').split(/[._\-+\s]+/).filter(Boolean);
+  const name = (words.length ? words : ['User']).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+  const jobs = [['Engineering','Software Engineer'],['Design','UI/UX Designer'],['Quality Assurance','QA Engineer'],['Operations','Business Analyst'],['Finance','Accounts Executive'],['Human Resources','HR Executive']];
+  const cities = [['Chennai','Tamil Nadu','600001'],['Coimbatore','Tamil Nadu','641001'],['Madurai','Tamil Nadu','625001'],['Bengaluru','Karnataka','560001'],['Hyderabad','Telangana','500001'],['Pune','Maharashtra','411001']];
+  const [dept, title] = jobs[h % jobs.length], [city, state, postal] = cities[(h >> 3) % cities.length];
+  const basic = 40000 + (h % 12) * 4000;
+  const pad = n => String(n).padStart(2,'0');
+  const y = 2020 + (h % 5);
+  const tag = (h % 0xFFFFFF).toString(16).toUpperCase().padStart(6,'0');
+
+  return _generated[email] = {
+    name, role:'Employee', id:'EMP-' + (4000 + h % 1000), dept, title, manager:'Manoranjani',
+    joined: `${y}-${pad(1 + h % 12)}-${pad(1 + h % 27)}`, email, basic, taxRate: 0.05 + (h % 8) / 100,
+    balance:{ 'Annual Leave': 2 + h % 9, 'Sick Leave': h % 4, 'Casual Leave': h % 3 },
+    address:{ line1: `${1 + h % 99}, Main Road`, line2:'Gandhi Nagar', city, state, postal, country:'India' },
+    leaves:[
+      { id:'LV-G' + tag.slice(0,5) + 'A', type:'Annual Leave', start:'2026-07-13', end:'2026-07-15', days:3, status:'Approved', reason:'Family function' },
+      { id:'LV-G' + tag.slice(0,5) + 'B', type:'Sick Leave',   start:'2026-09-22', end:'2026-09-22', days:1, status:'Approved', reason:'Cold and fever' },
+      { id:'LV-G' + tag.slice(0,5) + 'C', type:'Casual Leave', start:'2026-12-04', end:'2026-12-04', days:1, status:'Pending',  reason:'Personal work' }
+    ]
+  };
+}
+
 /* ---------- Session (front-end convenience only) ---------- */
 const session = {
   get: () => store.get('user', null),
   login(email){
-    const u = DEMO_USERS[email];
-    if(!u) return null;
+    const u = profileFor(email);
     const { leaves, address, balance, basic, taxRate, ...safe } = u;   // keep the session object small
     store.set('user', { ...safe, loginAt: Date.now() });
     return u;
   },
   logout(){ try{ sessionStorage.clear(); }catch{} location.href = 'index.html'; }
 };
-const currentData = () => { const s = session.get(); return s ? DEMO_USERS[s.email] : null; };
+const currentData = () => { const s = session.get(); return s ? profileFor(s.email) : null; };
 
 /* ---------- Per-user data ---------- */
 function seedLeaves(){ const d = currentData(); return d ? d.leaves.map(l => ({...l})) : []; }
