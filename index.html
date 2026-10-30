@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <div class="auth">
@@ -41,7 +41,7 @@
         <div class="field">
           <label for="password">Password <span class="req">*</span></label>
           <div class="input-wrap">
-            <input class="input" id="password" type="password" autocomplete="current-password" placeholder="Minimum 12 characters" required>
+            <input class="input" id="password" type="password" autocomplete="current-password" placeholder="Enter any password" required>
             <button type="button" class="toggle" id="toggle" aria-label="Show password"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
           <div class="err"></div>
@@ -50,15 +50,14 @@
       </form>
 
       <div class="demo">
-        <b>Demo login</b> — use any email address<br>
-        Password: <code>DemoPass@2026!</code><br>
+        <b>Demo login</b> — use any email address and any password<br>
         Team: santhiya · swetha · manoranjani · sahana · vithiya @gmail.com
       </div>
     </div>
   </main>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 <script>
   if (session.get()) location.replace('dashboard.html');
 
@@ -74,7 +73,7 @@
     e.preventDefault(); alertBox.classList.remove('show'); clearErrors(form);
     let ok = true;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())){ setError(email, 'Enter a valid email address.'); ok = false; }
-    if(pw.value.length < 12){ setError(pw, 'Password must be at least 12 characters.'); ok = false; }
+    if(!pw.value){ setError(pw, 'Please enter a password.'); ok = false; }
     if(!ok) return;
 
     if(Date.now() < lockedUntil){
@@ -82,14 +81,14 @@
     }
     const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Signing in…';
     setTimeout(() => {   // TODO: replace with fetch('/api/auth/login', {method:'POST', ...})
-      const user = DEMO_USERS[email.value.trim().toLowerCase()];
-      if(pw.value === DEMO_PASSWORD){   // demo: any valid email + the demo password
-        session.login(email.value.trim().toLowerCase());
+      let ok = false;
+      try { ok = !!session.login(email.value.trim().toLowerCase()); } catch(err){ console.error(err); }
+      if(ok){   // demo mode: any valid email + any password
         location.href = 'dashboard.html';
       } else {
         attempts++;
         if(attempts >= 5){ lockedUntil = Date.now() + 30000; attempts = 0; }
-        alertBox.textContent = 'Invalid email or password.';   // generic message on purpose
+        alertBox.textContent = 'Could not sign in. Please press Ctrl+F5 to refresh and try again.';
         alertBox.classList.add('show');
         btn.disabled = false; btn.textContent = 'Sign in';
       }
